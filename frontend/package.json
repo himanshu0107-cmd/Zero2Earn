@@ -1,7 +1,7 @@
 {
   "name": "zero2earn-frontend",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,7 +12,9 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.22.3",
-    "lucide-react": "^0.364.0"
+    "axios": "^1.6.0",
+    "sockjs-client": "^1.6.1",
+    "@stomp/stompjs": "^7.0.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",

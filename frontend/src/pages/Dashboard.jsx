@@ -1,178 +1,388 @@
-import React, { useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import { Home, List, DollarSign, Settings, ShoppingCart, User, MessageCircle, Zap } from 'lucide-react';
+import JobCard from '../components/JobCard';
+import { AuthContext } from '../context/AuthContext';
+import { jobAPI, applicationAPI, courseAPI } from '../services/api';
 
-const Dashboard = () => {
-  const [role, setRole] = useState('seller'); // default for demo purposes
+const SIDEBAR_TABS = [
+  { id: 'overview',     label: 'Overview',      emoji: '📊' },
+  { id: 'recommended',  label: 'Recommended',   emoji: '⚡' },
+  { id: 'applications', label: 'Applications',   emoji: '📋' },
+  { id: 'my-jobs',      label: 'My Posted Jobs', emoji: '📌' },
+  { id: 'courses',      label: 'My Courses',     emoji: '🎓' },
+];
+
+const STATUS_COLOR = {
+  PENDING:   { cls: 'badge-warning',   label: '⏳ Pending'   },
+  ACCEPTED:  { cls: 'badge-success',   label: '✅ Accepted'  },
+  REJECTED:  { cls: 'badge-danger',    label: '❌ Rejected'  },
+  COMPLETED: { cls: 'badge-primary',   label: '🏆 Completed' },
+  WITHDRAWN: { cls: 'badge-secondary', label: '↩ Withdrawn'  },
+};
+
+export default function Dashboard() {
+  const { user } = useContext(AuthContext);
   const navigate = useNavigate();
 
+  const [activeTab, setActiveTab]     = useState('overview');
+  const [recommended, setRecommended] = useState([]);
+  const [applications, setApplications] = useState([]);
+  const [myJobs, setMyJobs]           = useState([]);
+  const [myCourses, setMyCourses]     = useState([]);
+  const [loading, setLoading]         = useState(true);
+
+  useEffect(() => {
+    if (!user) { navigate('/login'); return; }
+    fetchAll();
+  }, [user]);
+
+  const fetchAll = async () => {
+    setLoading(true);
+    try {
+      const [recRes, appRes, jobsRes, coursesRes] = await Promise.allSettled([
+        jobAPI.getRecommended({ page: 0, size: 6 }),
+        applicationAPI.getMyApplications(),
+        jobAPI.getMyJobs(),
+        courseAPI.getMyCourses(),
+      ]);
+      if (recRes.status === 'fulfilled' && recRes.value.data.success)
+        setRecommended(recRes.value.data.data || []);
+      if (appRes.status === 'fulfilled' && appRes.value.data.success)
+        setApplications(appRes.value.data.data || []);
+      if (jobsRes.status === 'fulfilled' && jobsRes.value.data.success)
+        setMyJobs(jobsRes.value.data.data || []);
+      if (coursesRes.status === 'fulfilled' && coursesRes.value.data.success)
+        setMyCourses(coursesRes.value.data.data || []);
+    } catch {}
+    finally { setLoading(false); }
+  };
+
+  const xpLevel = (xp) => {
+    if (xp >= 500) return { label: 'Platinum', color: '#A78BFA' };
+    if (xp >= 200) return { label: 'Gold',     color: '#FBBF24' };
+    if (xp >= 100) return { label: 'Silver',   color: '#9CA3AF' };
+    return { label: 'Bronze', color: '#D97706' };
+  };
+  const level = xpLevel(user?.xp || 0);
+  const nextXp = level.label === 'Bronze' ? 100 : level.label === 'Silver' ? 200 : level.label === 'Gold' ? 500 : 1000;
+  const xpPct  = Math.min(100, Math.round(((user?.xp || 0) / nextXp) * 100));
+
+  const completedJobs = applications.filter(a => a.status === 'COMPLETED').length;
+  const activeApps    = applications.filter(a => a.status === 'PENDING' || a.status === 'ACCEPTED').length;
+
   return (
-    <div>
-      <Navbar isLoggedIn={true} userRole={role} />
-      
-      <div className="dashboard-layout">
-        <aside className="sidebar">
-          <ul className="sidebar-menu">
-            <li><a href="#" className="active"><Home size={20} /> Dashboard Overview</a></li>
-            {role === 'seller' && (
-              <>
-                <li><a href="#"><List size={20} /> My Services (Gigs)</a></li>
-                <li><a href="#"><ShoppingCart size={20} /> Orders Recieved</a></li>
-                <li><a href="#"><DollarSign size={20} /> Earnings & Wallet</a></li>
-              </>
-            )}
-            {role === 'buyer' && (
-              <>
-                <li><a href="#"><ShoppingCart size={20} /> My Orders</a></li>
-                <li><a href="#"><DollarSign size={20} /> Wallet Balance</a></li>
-                <li><a href="#"><MessageCircle size={20} /> AI Search Assistant</a></li>
-              </>
-            )}
-            {role === 'admin' && (
-              <>
-                <li><a href="#"><List size={20} /> Manage Services</a></li>
-                <li><a href="#"><User size={20} /> Manage Users</a></li>
-                <li><a href="#"><DollarSign size={20} /> Transactions</a></li>
-              </>
-            )}
-            <li><a href="#"><Settings size={20} /> Settings</a></li>
-          </ul>
+    <div className="dashboard">
+      <Navbar />
+      <div className="page-content">
+        <div className="dashboard-grid">
 
-          <div style={{ padding: '24px', borderTop: '1px solid var(--border-color)', marginTop: '24px' }}>
-            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>Demo View As:</p>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button 
-                onClick={() => setRole('buyer')}
-                style={{ padding: '4px 8px', fontSize: '12px', border: '1px solid #ccc', borderRadius: '4px', background: role === 'buyer' ? 'var(--primary)' : 'white', color: role === 'buyer' ? 'white' : 'inherit' }}>
-                Buyer
-              </button>
-              <button 
-                onClick={() => setRole('seller')}
-                style={{ padding: '4px 8px', fontSize: '12px', border: '1px solid #ccc', borderRadius: '4px', background: role === 'seller' ? 'var(--primary)' : 'white', color: role === 'seller' ? 'white' : 'inherit' }}>
-                Seller
-              </button>
-              <button 
-                onClick={() => setRole('admin')}
-                style={{ padding: '4px 8px', fontSize: '12px', border: '1px solid #ccc', borderRadius: '4px', background: role === 'admin' ? 'var(--primary)' : 'white', color: role === 'admin' ? 'white' : 'inherit' }}>
-                Admin
-              </button>
-            </div>
-          </div>
-        </aside>
-
-        <main className="dashboard-content">
-          <h1 style={{ fontSize: '28px', marginBottom: '24px' }}>Welcome back, Student!</h1>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '24px', marginBottom: '32px' }}>
-            <div className="card" style={{ marginBottom: '0' }}>
-              <h3 className="card-title" style={{ fontSize: '16px', color: 'var(--text-muted)' }}>{role === 'seller' ? 'Earnings this month' : 'Wallet Balance'}</h3>
-              <div style={{ fontSize: '32px', fontWeight: '700' }}>Rs 4,500</div>
-              {role === 'seller' && <p style={{ color: 'var(--primary)', fontSize: '14px', marginTop: '8px' }}>+12% from last month</p>}
-            </div>
-            <div className="card" style={{ marginBottom: '0' }}>
-              <h3 className="card-title" style={{ fontSize: '16px', color: 'var(--text-muted)' }}>{role === 'admin' ? 'Total Users' : 'Active Orders'}</h3>
-              <div style={{ fontSize: '32px', fontWeight: '700' }}>{role === 'admin' ? '1,204' : '3'}</div>
-              <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '8px' }}>{role === 'admin' ? '+24 new today' : '2 pending your review'}</p>
-            </div>
-            {role === 'seller' && (
-              <div className="card" style={{ marginBottom: '0' }}>
-                <h3 className="card-title" style={{ fontSize: '16px', color: 'var(--text-muted)' }}>Response Rate</h3>
-                <div style={{ fontSize: '32px', fontWeight: '700' }}>100%</div>
-                <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '8px' }}>Usually responds in 1 hour</p>
+          {/* ── Sidebar ── */}
+          <aside className="sidebar">
+            <div className="sidebar-user">
+              <div className="avatar avatar-lg" style={{ margin: '0 auto' }}>
+                {user?.avatarUrl
+                  ? <img src={user.avatarUrl} alt={user.name} />
+                  : (user?.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2)
+                }
               </div>
-            )}
-            {role === 'buyer' && (
-              <div className="card" style={{ marginBottom: '0' }}>
-                <h3 className="card-title" style={{ fontSize: '16px', color: 'var(--text-muted)' }}>Services Saved</h3>
-                <div style={{ fontSize: '32px', fontWeight: '700' }}>12</div>
-                <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '8px' }}>View your wishlist</p>
+              <div className="sidebar-name">{user?.name}</div>
+              <div className="sidebar-role">
+                <span className={`badge ${user?.role === 'TEACHER' ? 'badge-warning' : user?.role === 'ADMIN' ? 'badge-danger' : 'badge-primary'}`} style={{ fontSize: 11 }}>
+                  {user?.role}
+                </span>
               </div>
-            )}
-          </div>
+              {user?.collegeName && <div className="sidebar-college">🏛 {user.collegeName}</div>}
 
-          <div className="card">
-            <h2 className="card-title">Recent Activity</h2>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                <thead>
-                  <tr style={{ borderBottom: '2px solid #e4e5e7' }}>
-                    <th style={{ padding: '12px 16px', fontWeight: '600' }}>Service</th>
-                    <th style={{ padding: '12px 16px', fontWeight: '600' }}>{role === 'seller' ? 'Buyer' : 'Seller'}</th>
-                    <th style={{ padding: '12px 16px', fontWeight: '600' }}>Date</th>
-                    <th style={{ padding: '12px 16px', fontWeight: '600' }}>Amount</th>
-                    <th style={{ padding: '12px 16px', fontWeight: '600' }}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    { service: 'React Frontend Fix', user: 'johndoe', date: 'Oct 24, 2023', amount: 'Rs 1500', status: 'Completed' },
-                    { service: 'Logo Design for Club', user: 'design_soc', date: 'Oct 22, 2023', amount: 'Rs 800', status: 'In Progress' },
-                    { service: 'Math Assignment Help', user: 'freshman01', date: 'Oct 20, 2023', amount: 'Rs 300', status: 'Pending' },
-                  ].map((row, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid #e4e5e7' }}>
-                      <td style={{ padding: '16px' }}>{row.service}</td>
-                      <td style={{ padding: '16px' }}>@{row.user}</td>
-                      <td style={{ padding: '16px', color: 'var(--text-muted)' }}>{row.date}</td>
-                      <td style={{ padding: '16px', fontWeight: '500' }}>{row.amount}</td>
-                      <td style={{ padding: '16px' }}>
-                        <span style={{ 
-                          padding: '4px 12px', 
-                          borderRadius: '20px', 
-                          fontSize: '12px', 
-                          fontWeight: '600',
-                          backgroundColor: row.status === 'Completed' ? '#e2f5ec' : row.status === 'In Progress' ? '#fff6ed' : '#f0f0f0',
-                          color: row.status === 'Completed' ? '#19a463' : row.status === 'In Progress' ? '#ff9b33' : '#62646a'
-                        }}>
-                          {row.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          
-          {role === 'seller' && (
-            <div className="card" style={{ background: 'linear-gradient(135deg, #1DBf73 0%, #023a15 100%)', color: 'white' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                <div>
-                  <h2 className="card-title" style={{ color: 'white', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Zap size={20} /> AI Skill Analyzer 
-                  </h2>
-                  <p style={{ opacity: 0.9, maxWidth: '600px', marginBottom: '16px' }}>
-                    Based on recent campus searches, "Tailwind CSS" and "Figma UI/UX" are highly requested. 
-                    Consider adding these to your services to increase your earnings by an estimated Rs 2,000/month!
-                  </p>
-                  <button style={{ backgroundColor: 'white', color: '#1DBf73', padding: '8px 16px', borderRadius: '4px', fontWeight: '600' }}>Update Profile</button>
+              {/* XP Bar */}
+              <div className="xp-bar-wrap">
+                <div className="xp-bar-label">
+                  <span style={{ color: level.color, fontWeight: 700 }}>⭐ {level.label}</span>
+                  <span>{user?.xp || 0} / {nextXp} XP</span>
+                </div>
+                <div className="xp-bar">
+                  <div className="xp-fill" style={{ width: `${xpPct}%` }} />
                 </div>
               </div>
             </div>
-          )}
 
-          {role === 'buyer' && (
-            <div className="card" style={{ border: '1px solid #1DBf73', background: 'rgba(29, 191, 115, 0.05)' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                <div>
-                  <h2 className="card-title" style={{ color: '#1DBf73', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <MessageCircle size={20} /> AI Smart Search
-                  </h2>
-                  <p style={{ color: 'var(--text-muted)', marginBottom: '16px' }}>
-                    Not sure what you need? Describe your problem and our AI will match you with the perfect seller and suggest a fair price.
-                  </p>
-                  <div style={{ display: 'flex', gap: '12px' }}>
-                    <input type="text" placeholder="e.g. I need someone to fix a bug in my python code..." style={{ flex: 1, padding: '12px', border: '1px solid #ccc', borderRadius: '4px' }} />
-                    <button className="btn btn-primary">Ask AI</button>
-                  </div>
-                </div>
+            <div className="divider" style={{margin:'0 0 16px'}}/>
+
+            <nav className="sidebar-nav">
+              {SIDEBAR_TABS.map(tab => (
+                <button key={tab.id}
+                  className={`sidebar-link ${activeTab === tab.id ? 'active' : ''}`}
+                  onClick={() => setActiveTab(tab.id)}>
+                  <span>{tab.emoji}</span> {tab.label}
+                </button>
+              ))}
+              <div className="divider" style={{margin:'12px 0'}}/>
+              <button className="sidebar-link" onClick={() => navigate(`/profile/${user?.id}`)}>
+                <span>👤</span> My Profile
+              </button>
+              <button className="sidebar-link" onClick={() => navigate('/post-job')}>
+                <span>➕</span> Post a Job
+              </button>
+              <button className="sidebar-link" onClick={() => navigate('/chat')}>
+                <span>💬</span> Messages
+              </button>
+            </nav>
+          </aside>
+
+          {/* ── Main Content ── */}
+          <main>
+            {loading ? (
+              <div className="loading-screen" style={{height:300}}>
+                <div className="spinner"/><p>Loading dashboard…</p>
               </div>
-            </div>
-          )}
-        </main>
+            ) : (
+              <>
+                {/* OVERVIEW */}
+                {activeTab === 'overview' && (
+                  <>
+                    <div style={{ marginBottom: 28 }}>
+                      <h1 style={{ fontSize: 26, fontWeight: 800 }}>
+                        Welcome back, {user?.name?.split(' ')[0]}! 👋
+                      </h1>
+                      <p style={{ color: 'var(--text-secondary)', marginTop: 6 }}>
+                        Here's what's happening with your freelancing journey.
+                      </p>
+                    </div>
+
+                    <div className="grid-4" style={{ marginBottom: 28 }}>
+                      <div className="stat-card">
+                        <div className="stat-icon-wrap stat-icon-purple">💼</div>
+                        <div>
+                          <div className="stat-label">Applied Jobs</div>
+                          <div className="stat-value">{applications.length}</div>
+                        </div>
+                      </div>
+                      <div className="stat-card">
+                        <div className="stat-icon-wrap stat-icon-green">✅</div>
+                        <div>
+                          <div className="stat-label">Completed</div>
+                          <div className="stat-value">{completedJobs}</div>
+                        </div>
+                      </div>
+                      <div className="stat-card">
+                        <div className="stat-icon-wrap stat-icon-orange">⏳</div>
+                        <div>
+                          <div className="stat-label">Active</div>
+                          <div className="stat-value">{activeApps}</div>
+                        </div>
+                      </div>
+                      <div className="stat-card">
+                        <div className="stat-icon-wrap stat-icon-red">📌</div>
+                        <div>
+                          <div className="stat-label">Posted Jobs</div>
+                          <div className="stat-value">{myJobs.length}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quick Actions */}
+                    <div className="card" style={{ marginBottom: 24 }}>
+                      <div className="card-header">
+                        <h2 className="section-title" style={{margin:0}}>⚡ Quick Actions</h2>
+                      </div>
+                      <div className="card-body">
+                        <div className="grid-4">
+                          {[
+                            { emoji:'🔍', label:'Browse Jobs',   path:'/jobs' },
+                            { emoji:'📤', label:'Post a Job',    path:'/post-job' },
+                            { emoji:'📚', label:'Explore Courses',path:'/courses' },
+                            { emoji:'💬', label:'Messages',      path:'/chat' },
+                          ].map(a => (
+                            <button key={a.path}
+                              onClick={() => navigate(a.path)}
+                              style={{
+                                background:'var(--bg-elevated)', border:'1px solid var(--border)',
+                                borderRadius:12, padding:'20px 12px', textAlign:'center',
+                                cursor:'pointer', transition:'all 0.2s', color:'var(--text-primary)',
+                              }}
+                              onMouseEnter={e => e.currentTarget.style.borderColor='var(--primary)'}
+                              onMouseLeave={e => e.currentTarget.style.borderColor='var(--border)'}>
+                              <div style={{ fontSize: 28, marginBottom: 8 }}>{a.emoji}</div>
+                              <div style={{ fontSize: 13, fontWeight: 600 }}>{a.label}</div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Recent Applications */}
+                    {applications.length > 0 && (
+                      <div className="card">
+                        <div className="card-header" style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                          <h2 className="section-title" style={{margin:0}}>📋 Recent Applications</h2>
+                          <button className="btn btn-ghost btn-sm" onClick={() => setActiveTab('applications')}>View all →</button>
+                        </div>
+                        <div style={{ overflow: 'hidden' }}>
+                          {applications.slice(0, 3).map(app => (
+                            <div key={app.id} style={{
+                              display:'flex', justifyContent:'space-between', alignItems:'center',
+                              padding:'14px 24px', borderBottom:'1px solid var(--border)'
+                            }}>
+                              <div>
+                                <div style={{ fontWeight: 600, fontSize: 14 }}>{app.jobTitle}</div>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                                  Applied {new Date(app.appliedAt).toLocaleDateString()}
+                                </div>
+                              </div>
+                              <span className={`badge ${STATUS_COLOR[app.status]?.cls}`}>
+                                {STATUS_COLOR[app.status]?.label}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* RECOMMENDED */}
+                {activeTab === 'recommended' && (
+                  <>
+                    <h2 className="section-title"><span>⚡</span> Jobs Matched to Your Skills</h2>
+                    {recommended.length === 0 ? (
+                      <div className="empty-state">
+                        <div className="icon">🎯</div>
+                        <h3>No matches yet</h3>
+                        <p>Add skills to your profile to get personalized job recommendations.</p>
+                        <button className="btn btn-primary mt-4" onClick={() => navigate(`/profile/${user?.id}`)}>
+                          Update Profile
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="jobs-grid">
+                        {recommended.map(job => <JobCard key={job.id} job={job} />)}
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* APPLICATIONS */}
+                {activeTab === 'applications' && (
+                  <>
+                    <h2 className="section-title"><span>📋</span> My Applications</h2>
+                    {applications.length === 0 ? (
+                      <div className="empty-state">
+                        <div className="icon">📭</div>
+                        <h3>No applications yet</h3>
+                        <p>Browse jobs and apply to start earning!</p>
+                        <button className="btn btn-primary mt-4" onClick={() => navigate('/jobs')}>
+                          Browse Jobs
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {applications.map(app => (
+                          <div key={app.id} className="card card-body"
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => navigate(`/jobs/${app.jobId}`)}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{app.jobTitle}</div>
+                                {app.coverLetter && (
+                                  <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: 0 }}>
+                                    {app.coverLetter.slice(0, 100)}…
+                                  </p>
+                                )}
+                                <div style={{ marginTop: 8, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                                  {app.proposedBudget && (
+                                    <span style={{ fontSize: 12, color: 'var(--secondary)' }}>
+                                      💰 ₹{app.proposedBudget} proposed
+                                    </span>
+                                  )}
+                                  {app.estimatedDays && (
+                                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                      📅 {app.estimatedDays} days
+                                    </span>
+                                  )}
+                                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                    Applied {new Date(app.appliedAt).toLocaleDateString()}
+                                  </span>
+                                </div>
+                              </div>
+                              <span className={`badge ${STATUS_COLOR[app.status]?.cls}`}>
+                                {STATUS_COLOR[app.status]?.label}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* MY POSTED JOBS */}
+                {activeTab === 'my-jobs' && (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                      <h2 className="section-title" style={{ margin: 0 }}><span>📌</span> My Posted Jobs</h2>
+                      <button className="btn btn-primary btn-sm" onClick={() => navigate('/post-job')}>+ Post New Job</button>
+                    </div>
+                    {myJobs.length === 0 ? (
+                      <div className="empty-state">
+                        <div className="icon">📝</div>
+                        <h3>No jobs posted yet</h3>
+                        <p>Post your first job and find talented students!</p>
+                        <button className="btn btn-primary mt-4" onClick={() => navigate('/post-job')}>
+                          Post a Job
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="jobs-grid">
+                        {myJobs.map(job => <JobCard key={job.id} job={job} showStatus />)}
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* MY COURSES */}
+                {activeTab === 'courses' && (
+                  <>
+                    <h2 className="section-title"><span>🎓</span> Enrolled Courses</h2>
+                    {myCourses.length === 0 ? (
+                      <div className="empty-state">
+                        <div className="icon">📚</div>
+                        <h3>No courses yet</h3>
+                        <p>Explore the course marketplace to upskill yourself.</p>
+                        <button className="btn btn-primary mt-4" onClick={() => navigate('/courses')}>
+                          Browse Courses
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="courses-grid">
+                        {myCourses.map(course => (
+                          <div key={course.id} className="course-card"
+                            onClick={() => navigate(`/courses/${course.id}`)}>
+                            <div className="course-thumb" style={{ fontSize: 36 }}>
+                              {course.category === 'Programming' ? '💻'
+                               : course.category === 'Design' ? '🎨'
+                               : course.category === 'AI/ML' ? '🤖' : '📚'}
+                            </div>
+                            <div className="course-body">
+                              <div className="course-title">{course.title}</div>
+                              <div className="course-instructor">by {course.instructorName}</div>
+                              <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                                Progress: {course.userProgress || 0}%
+                              </div>
+                              <div className="course-progress">
+                                <div className="course-progress-fill" style={{ width: `${course.userProgress || 0}%` }} />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </main>
+        </div>
       </div>
     </div>
   );
-};
-
-export default Dashboard;
+}

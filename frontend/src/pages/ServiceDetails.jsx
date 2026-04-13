@@ -1,109 +1,134 @@
-import React from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import { Star, Clock, RefreshCw, Check, MapPin, Zap } from 'lucide-react';
+import { AuthContext } from '../context/AuthContext';
+import { taskAPI, userTaskAPI } from '../services/api';
+import { Zap, Clock, Award } from 'lucide-react';
 
 const ServiceDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useContext(AuthContext);
+  const [task, setTask] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // Mock service data based on ID
-  const service = {
-    id: id,
-    title: 'I will build a React frontend for your final year project',
-    seller: 'alex_dev',
-    rating: 4.9,
-    reviews: 34,
-    price: 1500,
-    img: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-    description: `Need a stunning frontend for your final year project but stuck with backend code? I've got you covered!
-    
-I specialize in React and Tailwind CSS and can build clean, responsive, and modern UIs quickly. Whether it's a dashboard, e-commerce, or a portfolio site, I ensure top quality.
+  useEffect(() => {
+    loadTask();
+  }, [id]);
 
-What you'll get:
-- Fully responsive design
-- Clean, readable code
-- Component-based architecture
-- Integration with your APIs
-- Unlimited revisions until you're satisfied
-
-Let me handle the UI so you can focus on making your project passing the review!`,
-    delivery: '3 Days Delivery',
-    revisions: 'Unlimited Revisions',
-    hostel: 'Block A, Room 312',
-    features: ['Responsive Design', 'Source Code', 'Setup Instruction']
+  const loadTask = async () => {
+    try {
+      const response = await taskAPI.getTaskById(id);
+      if (response.data.success) {
+        setTask(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error loading task:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
+  const handleCompleteTask = async () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+
+    try {
+      const response = await userTaskAPI.completeTask(user.id, task.id);
+      if (response.data.success) {
+        alert(`Task completed! +${task.rewardCoins} coins earned!`);
+        navigate('/dashboard');
+      }
+    } catch (error) {
+      alert(error.response?.data?.message || 'Error completing task');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div>
+        <Navbar />
+        <div className="loading" style={{ paddingTop: '200px' }}>Loading task details...</div>
+      </div>
+    );
+  }
+
+  if (!task) {
+    return (
+      <div>
+        <Navbar />
+        <div className="error-message" style={{ margin: '40px 24px' }}>Task not found</div>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ backgroundColor: '#f7f7f7', minHeight: '100vh' }}>
-      <Navbar isLoggedIn={true} userRole="buyer" />
-      
-      <div className="container" style={{ padding: '40px 24px', display: 'flex', gap: '40px', flexWrap: 'wrap' }}>
-        <div style={{ flex: '1 1 600px' }}>
-          <h1 style={{ fontSize: '28px', marginBottom: '16px' }}>{service.title}</h1>
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div className="seller-avatar" style={{ backgroundImage: `url(https://i.pravatar.cc/100?u=${service.seller})`, backgroundSize: 'cover' }}></div>
-              <span style={{ fontWeight: '600' }}>{service.seller}</span>
+    <div>
+      <Navbar />
+      <div className="task-details-container" style={{ maxWidth: '900px', margin: '0 auto', padding: '40px 24px' }}>
+        <button 
+          onClick={() => navigate('/services')}
+          className="btn btn-secondary"
+          style={{ marginBottom: '24px' }}
+        >
+          ← Back to Tasks
+        </button>
+
+        <div style={{ background: 'white', padding: '40px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '24px', gap: '20px', flexWrap: 'wrap' }}>
+            <div>
+              <h1 style={{ fontSize: '32px', marginBottom: '12px' }}>{task.title}</h1>
+              <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+                <span style={{ display: 'flex', gap: '6px', alignItems: 'center', color: '#64748b' }}>
+                  <Award size={16} /> Type: {task.taskType}
+                </span>
+                <span style={{ display: 'flex', gap: '6px', alignItems: 'center', color: '#64748b' }}>
+                  <Clock size={16} /> Status: {task.status}
+                </span>
+              </div>
             </div>
-            <div style={{ color: '#ffb33e', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: '600' }}>
-              <Star size={16} fill="currentColor" /> {service.rating} <span style={{ color: 'var(--text-muted)', fontWeight: '400' }}>({service.reviews} reviews)</span>
-            </div>
-            <div style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <MapPin size={16} /> Campus: {service.hostel}
+            <div style={{ background: '#fef3c7', padding: '16px', borderRadius: '8px', textAlign: 'center', minWidth: '120px' }}>
+              <div style={{ fontSize: '12px', color: '#b45309', fontWeight: '600' }}>REWARD</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '24px', fontWeight: '800', color: '#d97706' }}>
+                <Zap size={24} />
+                {task.rewardCoins}
+              </div>
             </div>
           </div>
 
-          <img src={service.img} alt={service.title} style={{ width: '100%', borderRadius: '8px', marginBottom: '32px' }} />
-
-          <h2 style={{ fontSize: '20px', marginBottom: '16px' }}>About this service</h2>
-          <div style={{ whiteSpace: 'pre-line', color: 'var(--text-main)', lineHeight: '1.6', fontSize: '16px', marginBottom: '32px' }}>
-            {service.description}
-          </div>
-
-          <div style={{ background: '#f0f0f0', padding: '16px', borderRadius: '8px', marginBottom: '32px' }}>
-            <h3 style={{ fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', color: '#1DBf73' }}>
-              <Zap size={18} /> AI Suggestion
-            </h3>
-            <p style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
-              Based on similar services on campus, Rs {service.price} is a highly competitive price. We suggest booking fast as this seller's schedule fills up by midterms.
+          <div style={{ marginTop: '32px', marginBottom: '32px' }}>
+            <h3 style={{ fontSize: '22px', marginBottom: '16px' }}>Task Description</h3>
+            <p style={{ color: '#475569', lineHeight: '1.8', fontSize: '16px' }}>
+              {task.description}
             </p>
           </div>
-        </div>
 
-        <div style={{ width: '350px' }}>
-          <div className="card" style={{ position: 'sticky', top: '100px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h2 style={{ fontSize: '20px' }}>Final Project Package</h2>
-              <span style={{ fontSize: '24px', fontWeight: '700' }}>Rs {service.price}</span>
-            </div>
-            <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>
-              Complete 5-page frontend with responsive design and basic API integration support.
-            </p>
-
-            <div style={{ display: 'flex', gap: '16px', marginBottom: '24px', fontWeight: '600', fontSize: '14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={16} /> {service.delivery}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><RefreshCw size={16} /> {service.revisions}</div>
-            </div>
-
-            <ul style={{ listStyle: 'none', marginBottom: '24px' }}>
-              {service.features.map((feature, i) => (
-                <li key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', color: 'var(--text-main)' }}>
-                  <Check size={16} color="#1DBf73" /> {feature}
-                </li>
-              ))}
-            </ul>
-
+          {user && (
             <button 
-              className="btn btn-primary" 
-              style={{ width: '100%', padding: '16px', fontSize: '16px', marginBottom: '12px' }}
-              onClick={() => alert('Order Placed Successfully! Deducted Rs ' + service.price + ' from your mock wallet.')}
+              onClick={handleCompleteTask}
+              className="btn btn-primary btn-large"
+              style={{ width: '100%' }}
             >
-              Continue to Book
+              <Zap size={20} /> Complete Task & Earn {task.rewardCoins} Coins
             </button>
-            <button className="btn btn-outline" style={{ width: '100%', padding: '16px', fontSize: '16px' }}>Message Seller</button>
-          </div>
+          )}
+          
+          {!user && (
+            <>
+              <p style={{ textAlign: 'center', color: '#64748b', marginBottom: '20px' }}>
+                Sign in to complete this task and earn coins
+              </p>
+              <button 
+                onClick={() => navigate('/login')}
+                className="btn btn-primary btn-large"
+                style={{ width: '100%' }}
+              >
+                Sign In to Continue
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

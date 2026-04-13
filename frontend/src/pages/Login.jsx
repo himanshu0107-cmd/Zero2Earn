@@ -1,101 +1,158 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useContext } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Navbar from '../components/Navbar';
+import { authAPI } from '../services/api';
+import { AuthContext } from '../context/AuthContext';
+
+const ROLES = [
+  { value: 'STUDENT', label: 'Student', emoji: '🎓' },
+  { value: 'TEACHER', label: 'Teacher', emoji: '📚' },
+  { value: 'ADMIN',   label: 'Admin',   emoji: '🛡' },
+];
 
 const Login = () => {
-  const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [role, setRole] = useState('buyer');
-  const [name, setName] = useState('');
-  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [tab, setTab]   = useState(searchParams.get('tab') === 'register' ? 'register' : 'login');
+  const [form, setForm] = useState({ name:'', username:'', email:'', password:'', confirmPassword:'', role:'STUDENT', collegeId:'' });
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState('');
+  const { login }  = useContext(AuthContext);
+  const navigate   = useNavigate();
 
-  const handleSubmit = (e) => {
+  const set = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }));
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Simulate login
-    console.log('Logging in with:', { email, password, role });
-    navigate('/dashboard');
+    setError('');
+    if (tab === 'register' && form.password !== form.confirmPassword) {
+      setError('Passwords do not match'); return;
+    }
+    setLoading(true);
+    try {
+      const payload = tab === 'login'
+        ? { email: form.email, password: form.password }
+        : { name: form.name, username: form.username, email: form.email,
+            password: form.password, role: form.role,
+            collegeId: form.collegeId ? parseInt(form.collegeId) : null };
+
+      const res = tab === 'login' ? await authAPI.login(payload) : await authAPI.register(payload);
+      if (res.data.success) {
+        login(res.data.data.token, res.data.data.user);
+        navigate('/dashboard');
+      } else {
+        setError(res.data.message);
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f7f7f7', display: 'flex', flexDirection: 'column' }}>
-      <Navbar isLoggedIn={false} />
-      
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, padding: '40px 20px' }}>
-        <div className="card" style={{ maxWidth: '450px', width: '100%' }}>
-          <h2 style={{ fontSize: '28px', marginBottom: '8px', textAlign: 'center' }}>
-            {isLogin ? 'Sign in to Zero2Earn' : 'Join Zero2Earn Campus'}
-          </h2>
-          <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginBottom: '32px' }}>
-            {isLogin ? 'Welcome back, student!' : 'Start your campus freelance journey.'}
+    <div className="page">
+      <Navbar />
+      <div className="auth-page">
+        <div className="auth-card">
+          <div className="auth-logo">⚡ Zero2Earn</div>
+          <h1 className="auth-title">
+            {tab === 'login' ? 'Welcome back!' : 'Create account'}
+          </h1>
+          <p className="auth-subtitle">
+            {tab === 'login'
+              ? 'Sign in to access your dashboard'
+              : 'Join thousands of students earning through skills'}
           </p>
 
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {!isLogin && (
+          {/* Tab Switcher */}
+          <div className="tabs" style={{ marginBottom: 24, justifyContent: 'center' }}>
+            <button className={`tab ${tab === 'login' ? 'active' : ''}`}
+              onClick={() => { setTab('login'); setError(''); }}>
+              Sign In
+            </button>
+            <button className={`tab ${tab === 'register' ? 'active' : ''}`}
+              onClick={() => { setTab('register'); setError(''); }}>
+              Register
+            </button>
+          </div>
+
+          {error && <div className="alert alert-error">⚠ {error}</div>}
+
+          <form onSubmit={handleSubmit}>
+            {tab === 'register' && (
               <>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Full Name</label>
-                  <input 
-                    type="text" 
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    style={{ width: '100%', padding: '12px', border: '1px solid #e4e5e7', borderRadius: '4px' }}
-                    required
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>I want to...</label>
-                  <div style={{ display: 'flex', gap: '16px' }}>
-                    <label style={{ flex: 1, padding: '16px', border: `2px solid ${role === 'buyer' ? 'var(--primary)' : '#e4e5e7'}`, borderRadius: '4px', cursor: 'pointer', textAlign: 'center', fontWeight: '600' }}>
-                      <input type="radio" name="role" value="buyer" checked={role === 'buyer'} onChange={() => setRole('buyer')} style={{ display: 'none' }} />
-                      Hire Services
-                    </label>
-                    <label style={{ flex: 1, padding: '16px', border: `2px solid ${role === 'seller' ? 'var(--primary)' : '#e4e5e7'}`, borderRadius: '4px', cursor: 'pointer', textAlign: 'center', fontWeight: '600' }}>
-                      <input type="radio" name="role" value="seller" checked={role === 'seller'} onChange={() => setRole('seller')} style={{ display: 'none' }} />
-                      Offer Services
-                    </label>
+                {/* Role Selection */}
+                <div className="form-group">
+                  <label className="form-label">I am a</label>
+                  <div className="role-selector">
+                    {ROLES.map(r => (
+                      <div key={r.value}
+                        className={`role-option ${form.role === r.value ? 'selected' : ''}`}
+                        onClick={() => setForm(f => ({ ...f, role: r.value }))}>
+                        <div style={{ fontSize: 20, marginBottom: 4 }}>{r.emoji}</div>
+                        {r.label}
+                      </div>
+                    ))}
                   </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Full Name</label>
+                  <input className="form-input" type="text" placeholder="Your full name"
+                    value={form.name} onChange={set('name')} required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Username</label>
+                  <input className="form-input" type="text" placeholder="username (no spaces)"
+                    value={form.username} onChange={set('username')} required />
                 </div>
               </>
             )}
 
-            <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>College Email</label>
-              <input 
-                type="email" 
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@college.edu"
-                style={{ width: '100%', padding: '12px', border: '1px solid #e4e5e7', borderRadius: '4px' }}
-                required
-              />
+            <div className="form-group">
+              <label className="form-label">Email Address</label>
+              <input className="form-input" type="email" placeholder="you@college.edu"
+                value={form.email} onChange={set('email')} required />
             </div>
 
-            <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Password</label>
-              <input 
-                type="password" 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={{ width: '100%', padding: '12px', border: '1px solid #e4e5e7', borderRadius: '4px' }}
-                required
-              />
+            <div className="form-group">
+              <label className="form-label">Password</label>
+              <input className="form-input" type="password" placeholder="Min. 6 characters"
+                value={form.password} onChange={set('password')} required minLength={6} />
             </div>
 
-            <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '14px', fontSize: '16px', marginTop: '8px' }}>
-              {isLogin ? 'Sign In' : 'Join Now'}
+            {tab === 'register' && (
+              <div className="form-group">
+                <label className="form-label">Confirm Password</label>
+                <input className="form-input" type="password" placeholder="Repeat password"
+                  value={form.confirmPassword} onChange={set('confirmPassword')} required />
+              </div>
+            )}
+
+            <button type="submit" className="btn btn-primary btn-block btn-lg"
+              disabled={loading}>
+              {loading ? (
+                <><span className="spinner spinner-sm" /> Processing...</>
+              ) : (
+                tab === 'login' ? 'Sign In →' : 'Create Account →'
+              )}
             </button>
           </form>
 
-          <div style={{ marginTop: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>
-            {isLogin ? "Don't have an account? " : "Already have an account? "}
-            <span 
-              onClick={() => setIsLogin(!isLogin)} 
-              style={{ color: 'var(--primary)', fontWeight: '600', cursor: 'pointer' }}
-            >
-              {isLogin ? 'Join Now' : 'Sign In'}
-            </span>
+          <div className="auth-footer">
+            {tab === 'login' ? "Don't have an account? " : 'Already have an account? '}
+            <button className="link-btn"
+              onClick={() => { setTab(tab === 'login' ? 'register' : 'login'); setError(''); }}>
+              {tab === 'login' ? 'Register here' : 'Sign in'}
+            </button>
           </div>
+
+          {tab === 'login' && (
+            <div style={{ marginTop: 20, padding: 14, background: 'var(--bg-surface)', borderRadius: 8, fontSize: 12, color: 'var(--text-secondary)' }}>
+              <strong style={{ color: 'var(--text-primary)' }}>Demo accounts:</strong><br/>
+              admin@zero2earn.in / Test@1234 &nbsp;|&nbsp; rahul@mitpune.edu / Test@1234
+            </div>
+          )}
         </div>
       </div>
     </div>
